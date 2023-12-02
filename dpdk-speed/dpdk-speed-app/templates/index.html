@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Access-Control-Allow-Origin" content="*">
+    <title>ECharts</title>
+    <!-- 引入刚刚下载的 ECharts 文件 -->
+    <!-- <script src="./echarts.min.js"></script> -->
+    <script src="{{ url_for('static',filename='./echarts.min.js') }}"></script>
+</head>
+
+<body>
+    <!-- 为 ECharts 准备一个定义了宽高的 DOM -->
+    <div id="main" style="width: 100%;height:400px;"></div>
+    <Br>
+    <div id="main2" style="width: 100%;height:400px;"></div>
+    <script type="text/javascript">
+        // 基于准备好的dom，初始化echarts实例
+        var myChart = echarts.init(document.getElementById('main'));
+        var myChart2 = echarts.init(document.getElementById('main2'));
+        function getStats() {
+            var xhr = new XMLHttpRequest()
+            xhr.open("GET", "/stats", false)
+            xhr.send()
+            return JSON.parse(xhr.responseText)
+        }
+
+        var lastData = getStats()
+
+        function autoChange() {
+            //里面写内容
+            var curData = getStats()
+            var interval = curData[0].timestamp - lastData[0].timestamp
+            var lastStats = lastData[0].stats, curStats = curData[0].stats
+
+            function Generate(str) {
+                var leg = [], stats = [], x_arr = []
+                for (var port in curStats) {
+                    var q_ipackets = []
+                    var q_opackets = []
+
+                    for (var q_ipkts in curStats[port]["q_i" + str]) {
+                        var now = curStats[port]["q_i" + str][q_ipkts] - lastStats[port]["q_i" + str][q_ipkts]
+                        now = now / interval
+                        if (str == "bytes") {
+                            now = now * 8
+                        }
+                        q_ipackets.push(now)
+
+                        now = curStats[port]["q_o" + str][q_ipkts] - lastStats[port]["q_o" + str][q_ipkts]
+                        now = now / interval
+                        if (str == "bytes") {
+                            now = now * 8
+                        }
+                        q_opackets.push(now)
+                    }
+                    x_arr = []
+                    for (var i = 0; i < q_ipackets.length; i++) {
+                        x_arr.push("Q" + i)
+                    }
+                    stats.push(q_ipackets)
+                    stats.push(q_opackets)
+                    leg.push("p" + port + "-" + "RX")
+                    leg.push("p" + port + "-" + "TX")
+                }
+                var series = []
+                var sum = []
+                for (var i = 0; i < leg.length; i++) {
+                    var tmp = 0;
+                    for (var it in stats[i]) {
+                        tmp += stats[i][it]
+                    }
+                    sum.push(tmp)
+                    series.push(
+                        {
+                            name: leg[i],
+                            type: 'bar',
+                            data: stats[i]
+                        }
+                    )
+                }
+                // 指定图表的配置项和数据
+                var option = {
+                    title: {
+                        text: 'DPDK Port Speed Monitor ' + (str == "packets" ? "PPS" : "BPS")
+                    },
+                    tooltip: {},
+                    legend: {
+                        data: leg
+                    },
+                    xAxis: {
+                        data: x_arr
+                    },
+                    yAxis: {},
+                    series: series
+                };
+                console.log(sum)
+                return option
+            }
+
+            myChart.setOption(Generate("packets"));
+            myChart2.setOption(Generate("bytes"));
+
+            lastData = curData
+        }
+
+        setInterval(  //设置定时器，1s更新一次
+            function () {
+                autoChange()
+            }, 1000
+        );
+
+
+    </script>
+    </script>
+</body>
+
+</html>
